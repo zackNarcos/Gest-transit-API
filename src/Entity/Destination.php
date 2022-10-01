@@ -38,9 +38,15 @@ class Destination
     #[ORM\OneToMany(mappedBy: 'destination', targetEntity: Colis::class)]
     private Collection $colis;
 
+    #[ORM\ManyToOne(inversedBy: 'destinations')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?Pays $pays = null;
+
+
     public function __construct()
     {
         $this->colis = new ArrayCollection();
+        $this->users = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -137,4 +143,17 @@ class Destination
 
         return $this;
     }
+
+    public function getPays(): ?Pays
+    {
+        return $this->pays;
+    }
+
+    public function setPays(?Pays $pays): self
+    {
+        $this->pays = $pays;
+
+        return $this;
+    }
+
 }

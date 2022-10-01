@@ -5,14 +5,53 @@ namespace App\Entity;
 use ApiPlatform\Core\Annotation\ApiFilter;
 use ApiPlatform\Core\Annotation\ApiResource;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
+use App\Controller\HashPasswordController;
+use App\Controller\MeController;
+use App\Controller\UserController;
 use App\Repository\UserRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Validator\Constraints\Valid;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
-#[ApiResource]
+#[ApiResource(
+    paginationItemsPerPage: 10,
+    paginationMaximumItemsPerPage: 10,
+    paginationClientItemsPerPage: true,
+    collectionOperations: [
+        'get',
+        'post',
+    ],
+    itemOperations:[
+        'get',
+        'put',
+        "delete",
+        'patch',
+        'me' => [
+            'pagination_enabled' => false,
+            'path' => '/me',
+            'method' => 'get',
+            'controller' => MeController::class,
+            'read' => false,
+            'openapi_context' => [
+                'tags' => ['Authentication'],
+            ]
+        ],
+        'hashPassword' => [
+            'pagination_enabled' => false,
+            'path' => '/string/h',
+            'method' => 'get',
+            'controller' => HashPasswordController::class,
+            'read' => false,
+            'openapi_context' => [
+                'tags' => ['Authentication'],
+            ]
+        ],
+    ]
+)]
 #[ApiFilter(SearchFilter::class, properties: ['email' => 'exact', 'nom' => 'exact'])]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
@@ -57,6 +96,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(nullable: true)]
     private ?bool $isLocked = null;
+
+    #[ORM\OneToMany(mappedBy: 'employe', targetEntity: Colis::class)]
+    private Collection $colis;
+
+    #[ORM\OneToMany(mappedBy: 'employe', targetEntity: Reliquat::class)]
+    private Collection $reliquats;
+
+    #[ORM\ManyToOne(inversedBy: 'users')]
+    private ?Pays $pays = null;
+
+    public function __construct()
+    {
+        $this->colis = new ArrayCollection();
+        $this->reliquats = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -223,4 +277,77 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
         return $this;
     }
+
+    /**
+     * @return Collection<int, Colis>
+     */
+    public function getColis(): Collection
+    {
+        return $this->colis;
+    }
+
+    public function addColi(Colis $coli): self
+    {
+        if (!$this->colis->contains($coli)) {
+            $this->colis->add($coli);
+            $coli->setEmploye($this);
+        }
+
+        return $this;
+    }
+
+    public function removeColi(Colis $coli): self
+    {
+        if ($this->colis->removeElement($coli)) {
+            // set the owning side to null (unless already changed)
+            if ($coli->getEmploye() === $this) {
+                $coli->setEmploye(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Reliquat>
+     */
+    public function getReliquats(): Collection
+    {
+        return $this->reliquats;
+    }
+
+    public function addReliquat(Reliquat $reliquat): self
+    {
+        if (!$this->reliquats->contains($reliquat)) {
+            $this->reliquats->add($reliquat);
+            $reliquat->setEmploye($this);
+        }
+
+        return $this;
+    }
+
+    public function removeReliquat(Reliquat $reliquat): self
+    {
+        if ($this->reliquats->removeElement($reliquat)) {
+            // set the owning side to null (unless already changed)
+            if ($reliquat->getEmploye() === $this) {
+                $reliquat->setEmploye(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getPays(): ?Pays
+    {
+        return $this->pays;
+    }
+
+    public function setPays(?Pays $pays): self
+    {
+        $this->pays = $pays;
+
+        return $this;
+    }
+
 }

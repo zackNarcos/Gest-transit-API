@@ -5,12 +5,128 @@ namespace App\Entity;
 use ApiPlatform\Core\Annotation\ApiFilter;
 use ApiPlatform\Core\Annotation\ApiResource;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
+use App\Controller\ColisController;
+use App\Controller\ColisEntrantController;
+use App\Controller\EtatMailerController;
+use App\Controller\ImageController;
+use App\Controller\MeController;
+use App\Controller\MesColisController;
+use App\Controller\MonthAvancesController;
+use App\Controller\MonthGainsController;
+use App\Controller\MonthQteController;
+use App\Controller\MonthReliquatsController;
+use App\Controller\StatsController;
 use App\Repository\ColisRepository;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: ColisRepository::class)]
-#[ApiResource]
-#[ApiFilter(SearchFilter::class, properties: ['numero' => 'exact'])]
+#[ApiResource(
+    collectionOperations:[
+        'get',
+        'post',
+        'getColisIn' => [
+            'method' => 'get',
+            'path' => '/getcolis/in',
+            'controller' => ColisEntrantController::class,
+            'read' => false,
+            'pagination_enabled' => true,
+            'paginationItemsPerPage' => 3,
+            'openapi_context' => [
+                'tags' => ['service'],
+                'summary' => 'affichage de colis pour la destination de l\'user connecté',
+            ]
+        ],
+        'getColis' => [
+            'method' => 'get',
+            'path' => '/getcolis/me',
+            'controller' => ColisController::class,
+            'read' => false,
+            'pagination_enabled' => true,
+            'paginationItemsPerPage' => 3,
+            'openapi_context' => [
+                'tags' => ['service'],
+                'summary' => 'affichage de colis pour la destination de l\'user connecté',
+            ]
+        ],
+        'getColisByUser' => [
+            'method' => 'get',
+            'path' => '/getcolis',
+            'controller' => MesColisController::class,
+            'read' => false,
+            'pagination_enabled' => true,
+            'openapi_context' => [
+                'tags' => ['service'],
+                'summary' => 'affichage de colis de l\'user connecté',
+            ]
+        ],
+    ],
+    itemOperations:[
+        'get',
+        'put',
+        "delete",
+        'patch',
+        'stats' => [
+            'pagination_enabled' => false,
+            'path' => '/statistiques',
+            'method' => 'get',
+            'controller' => StatsController::class,
+            'read' => false,
+            'openapi_context' => [
+                'tags' => ['Statistiques'],
+            ]
+        ],
+        'mailer' => [
+            'pagination_enabled' => false,
+            'path' => '/mailer',
+            'method' => 'get',
+            'controller' => EtatMailerController::class,
+            'read' => false,
+            'openapi_context' => [
+                'tags' => ['service'],
+            ]
+        ],
+        'sumAvances' => [
+            'method' => 'get',
+            'path' => '/sum/avances',
+            'controller' => MonthAvancesController::class,
+            'read' => false,
+            'pagination_enabled' => false,
+            'openapi_context' => [
+                'tags' => ['service'],
+                'summary' => 'Somme des avances recue par mois, en recevant l\'id de l\'employe en parametre',
+            ]
+
+        ],
+        'countColis' => [
+            'method' => 'get',
+            'path' => '/count/colis',
+            'controller' => MonthQteController::class,
+            'read' => false,
+            'pagination_enabled' => false,
+            'openapi_context' => [
+                'tags' => ['service'],
+                'summary' => ' qte recue par mois, en recevant l\'id de l\'employe en parametre',
+            ]
+
+        ],
+        'sumGains' => [
+            'method' => 'get',
+            'path' => '/sum/gains',
+            'controller' => MonthGainsController::class,
+            'read' => false,
+            'pagination_enabled' => false,
+            'openapi_context' => [
+                'tags' => ['service'],
+                'summary' => 'Somme des gains recue par mois, en recevant l\'id de l\'employe en parametre',
+            ]
+        ],
+    ]
+)]
+#[ApiFilter(SearchFilter::class, properties: [
+    'nomExpediteur' => 'word_start',
+    'numero' => 'start'
+])]
 class Colis
 {
     #[ORM\Id]
@@ -43,7 +159,7 @@ class Colis
     private ?string $telephoneBeneficiaire = null;
 
     #[ORM\Column]
-    private ?float $poids = null;
+    private ?int $poids = null;
 
     #[ORM\Column(nullable: true)]
     private ?int $emballage = null;
@@ -72,6 +188,29 @@ class Colis
 
     #[ORM\Column(length: 255)]
     private ?string $numero = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $avance = null;
+
+    #[ORM\Column(type: Types::DATE_MUTABLE)]
+    private ?\DateTimeInterface $dateDepot = null;
+
+    #[ORM\ManyToOne(inversedBy: 'colis')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?User $employe = null;
+
+    #[ORM\Column]
+    private ?bool $isSolde = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $reste = null;
+
+    #[ORM\OneToOne(mappedBy: 'coli')]
+    private ?Reliquat $reliquat = null;
+
+    #[ORM\ManyToOne(inversedBy: 'colis')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?Pays $paysDestination = null;
 
     public function getId(): ?int
     {
@@ -174,12 +313,12 @@ class Colis
         return $this;
     }
 
-    public function getPoids(): ?float
+    public function getPoids(): ?int
     {
         return $this->poids;
     }
 
-    public function setPoids(float $poids): self
+    public function setPoids(int $poids): self
     {
         $this->poids = $poids;
 
@@ -290,6 +429,100 @@ class Colis
     public function setNumero(string $numero): self
     {
         $this->numero = $numero;
+
+        return $this;
+    }
+
+    public function getAvance(): ?int
+    {
+        return $this->avance;
+    }
+
+    public function setAvance(?int $avance): self
+    {
+        $this->avance = $avance;
+
+        return $this;
+    }
+
+    public function getDateDepot(): ?\DateTimeInterface
+    {
+        return $this->dateDepot;
+    }
+
+    public function setDateDepot(\DateTimeInterface $dateDepot): self
+    {
+        $this->dateDepot = $dateDepot;
+
+        return $this;
+    }
+
+    public function getEmploye(): ?User
+    {
+        return $this->employe;
+    }
+
+    public function setEmploye(?User $employe): self
+    {
+        $this->employe = $employe;
+
+        return $this;
+    }
+
+    public function isIsSolde(): ?bool
+    {
+        return $this->isSolde;
+    }
+
+    public function setIsSolde(bool $isSolde): self
+    {
+        $this->isSolde = $isSolde;
+
+        return $this;
+    }
+
+    public function getReste(): ?int
+    {
+        return $this->reste;
+    }
+
+    public function setReste(?int $reste): self
+    {
+        $this->reste = $reste;
+
+        return $this;
+    }
+
+    public function getReliquat(): ?Reliquat
+    {
+        return $this->reliquat;
+    }
+
+    public function setReliquat(?Reliquat $reliquat): self
+    {
+        // unset the owning side of the relation if necessary
+        if ($reliquat === null && $this->reliquat !== null) {
+            $this->reliquat->setColi(null);
+        }
+
+        // set the owning side of the relation if necessary
+        if ($reliquat !== null && $reliquat->getColi() !== $this) {
+            $reliquat->setColi($this);
+        }
+
+        $this->reliquat = $reliquat;
+
+        return $this;
+    }
+
+    public function getPaysDestination(): ?Pays
+    {
+        return $this->paysDestination;
+    }
+
+    public function setPaysDestination(?Pays $paysDestination): self
+    {
+        $this->paysDestination = $paysDestination;
 
         return $this;
     }
